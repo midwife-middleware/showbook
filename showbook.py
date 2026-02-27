@@ -182,7 +182,7 @@ def save_cache(catalog, region):
 
 
 def load_cache(path):
-    """Load catalog from a JSON cache file."""
+    """Load catalog from a JSON cache file. Returns (catalog, fetch_date)."""
     with open(path) as f:
         data = json.load(f)
     # Convert lists back to tuples
@@ -193,10 +193,15 @@ def load_cache(path):
             "Shows": [tuple(t) for t in sections["Shows"]],
         }
     region = data.get("region", "US")
-    fetched = data.get("fetched_at", "unknown")
+    fetched_raw = data.get("fetched_at", "")
+    # Parse the fetch date for the edition title
+    try:
+        fetch_date = datetime.fromisoformat(fetched_raw).date()
+    except (ValueError, TypeError):
+        fetch_date = date.today()
     print(f"  Loaded cache: {path}")
-    print(f"  Fetched: {fetched} (region: {region})")
-    return catalog
+    print(f"  Fetched: {fetched_raw} (region: {region})")
+    return catalog, fetch_date
 
 
 # ---------------------------------------------------------------------------
@@ -211,11 +216,12 @@ def safe(text):
 class ShowBook(FPDF):
     """The sacred text — KDP paperback interior, 6x9."""
 
-    def __init__(self):
+    def __init__(self, edition_date=None):
         super().__init__(unit="mm", format=(TRIM_W_MM, TRIM_H_MM))
         self.set_auto_page_break(auto=False)
         self.alias_nb_pages()
-        self._edition = date.today().strftime("%Y/%m/%d")
+        d = edition_date or date.today()
+        self._edition = d.strftime("%Y/%m/%d")
         # Content area bottom limit (page height - bottom margin)
         self._bottom = TRIM_H_MM - MARGIN_BOTTOM_MM
 
@@ -352,8 +358,8 @@ class ShowBook(FPDF):
         ), align="C")
 
 
-def generate_pdf(catalog, output_path):
-    pdf = ShowBook()
+def generate_pdf(catalog, output_path, edition_date=None):
+    pdf = ShowBook(edition_date=edition_date)
 
     pdf.title_page()
     pdf.index_page(catalog)
@@ -435,13 +441,13 @@ def main():
     if args.from_cache:
         print("The Show and Movie Catalogue")
         print("=" * 35)
-        catalog = load_cache(args.from_cache)
+        catalog, fetch_date = load_cache(args.from_cache)
         total = sum(
             len(s["Movies"]) + len(s["Shows"]) for s in catalog.values()
         )
         print(f"  {total} titles across {len(catalog)} services")
         print(f"\n  Generating KDP-ready PDF (6\"x9\")...")
-        output, pages = generate_pdf(catalog, args.output)
+        output, pages = generate_pdf(catalog, args.output, edition_date=fetch_date)
         print(f"\n  Done! {pages} pages: {output}")
         return
 
