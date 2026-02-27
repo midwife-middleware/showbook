@@ -15,6 +15,10 @@ from datetime import date
 import requests
 from fpdf import FPDF
 
+# TMDB caps discover results at 500 pages (10,000 titles per query).
+# We default to ALL of them. This is the point.
+TMDB_MAX_PAGES = 500
+
 
 TMDB_BASE = "https://api.themoviedb.org/3"
 
@@ -68,10 +72,11 @@ def list_providers(api_key, region):
     print(f"\n  Providers marked with <-- are included by default.")
 
 
-def fetch_titles(api_key, provider_id, media_type, region, max_pages):
+def fetch_titles(api_key, provider_id, media_type, region, max_pages, label=""):
     """Fetch all titles for a provider/media_type from TMDB discover."""
     titles = []
     page = 1
+    total_pages = "?"
 
     while page <= max_pages:
         data = tmdb_get(f"/discover/{media_type}", api_key, {
@@ -82,6 +87,9 @@ def fetch_titles(api_key, provider_id, media_type, region, max_pages):
             "page": page,
         })
 
+        api_total = min(data.get("total_pages", 1), max_pages)
+        total_pages = api_total
+
         for item in data.get("results", []):
             name = item.get("title") or item.get("name") or "Unknown"
             year = None
@@ -90,11 +98,16 @@ def fetch_titles(api_key, provider_id, media_type, region, max_pages):
                 year = release[:4]
             titles.append((name, year))
 
-        total_pages = data.get("total_pages", 1)
-        if page >= total_pages:
+        # Live progress
+        print(f"\r    {label}: page {page}/{total_pages}"
+              f" ({len(titles)} titles)", end="", flush=True)
+
+        if page >= data.get("total_pages", 1):
             break
         page += 1
         time.sleep(REQUEST_DELAY)
+
+    print()  # newline after progress
 
     # Deduplicate and sort alphabetically
     seen = set()
@@ -250,8 +263,13 @@ def main():
     parser.add_argument(
         "--max-pages",
         type=int,
-        default=25,
-        help="Max result pages per query, 20 titles/page (default: 25)",
+        default=TMDB_MAX_PAGES,
+        help=f"Max result pages per query, 20 titles/page (default: {TMDB_MAX_PAGES} — everything)",
+    )
+    parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Quick mode: only 5 pages per query (~100 titles each). For cowards.",
     )
     parser.add_argument(
         "--region",
@@ -265,6 +283,9 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.quick:
+        args.max_pages = 5
+
     api_key = get_api_key(args.api_key)
 
     if args.list_providers:
@@ -277,15 +298,28 @@ def main():
 
     print("ShowBook - The Complete Streaming Guide")
     print("=" * 42)
+    if args.max_pages == TMDB_MAX_PAGES:
+        print("  Mode: EVERYTHING (this is going to take a while)")
+        print(f"  Fetching up to {TMDB_MAX_PAGES} pages per query across"
+              f" {len(PROVIDERS)} providers...")
+        print("  Go make coffee. Or read a physical book. The irony is free.")
+    elif args.quick:
+        print("  Mode: quick (--quick). Coward mode engaged.")
+    else:
+        print(f"  Mode: {args.max_pages} pages per query")
 
     for provider_id, provider_name in PROVIDERS.items():
-        print(f"\n  Fetching {provider_name}...")
+        print(f"\n  {provider_name}")
 
-        movies = fetch_titles(api_key, provider_id, "movie", args.region, args.max_pages)
-        print(f"    {len(movies):>5} movies")
+        movies = fetch_titles(
+            api_key, provider_id, "movie", args.region, args.max_pages,
+            label="Movies",
+        )
 
-        shows = fetch_titles(api_key, provider_id, "tv", args.region, args.max_pages)
-        print(f"    {len(shows):>5} shows")
+        shows = fetch_titles(
+            api_key, provider_id, "tv", args.region, args.max_pages,
+            label="Shows ",
+        )
 
         if not movies and not shows:
             print(f"    (no results — provider ID {provider_id} may be wrong,")

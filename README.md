@@ -26,17 +26,17 @@ You'll need a free TMDB API key: https://www.themoviedb.org/settings/api
 # Set your API key
 export TMDB_API_KEY="your_key_here"
 
-# Generate the book
+# Generate the book (fetches EVERYTHING by default — go get coffee)
 python showbook.py
 
 # Or pass the key directly
 python showbook.py --api-key your_key_here
 
+# Quick mode for cowards (~100 titles per category)
+python showbook.py --quick
+
 # Custom output path
 python showbook.py -o streaming_guide_2026.pdf
-
-# More titles (default 25 pages = ~500 titles per category)
-python showbook.py --max-pages 100
 
 # Different region
 python showbook.py --region GB
