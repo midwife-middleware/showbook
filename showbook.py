@@ -131,7 +131,8 @@ class ShowBook(FPDF):
     def header(self):
         if self.page_no() > 1:
             self.set_font("Helvetica", "I", 8)
-            self.cell(0, 8, safe("ShowBook \u2014 The Complete Streaming Guide"), align="C")
+            edition = date.today().strftime("%Y/%m/%d")
+            self.cell(0, 8, safe(f"The Show and Movie Catalogue: {edition} Edition"), align="C")
             self.ln(10)
 
     def footer(self):
@@ -141,15 +142,23 @@ class ShowBook(FPDF):
 
     def title_page(self):
         self.add_page()
-        self.set_font("Helvetica", "B", 52)
-        self.cell(0, 70, "", ln=True)
-        self.cell(0, 20, "ShowBook", ln=True, align="C")
-        self.ln(5)
+        edition = date.today().strftime("%Y/%m/%d")
+
+        self.set_font("Helvetica", "", 14)
+        self.cell(0, 50, "", ln=True)
+        self.cell(0, 10, "The", ln=True, align="C")
+
+        self.set_font("Helvetica", "B", 42)
+        self.cell(0, 18, "Show and Movie", ln=True, align="C")
+        self.cell(0, 18, "Catalogue", ln=True, align="C")
+
+        self.ln(8)
         self.set_font("Helvetica", "", 18)
-        self.cell(0, 12, safe("The Complete Streaming Guide"), ln=True, align="C")
-        self.ln(20)
-        self.set_font("Helvetica", "I", 11)
-        self.multi_cell(0, 6, safe(
+        self.cell(0, 12, safe(f"{edition} Edition"), ln=True, align="C")
+
+        self.ln(25)
+        self.set_font("Helvetica", "I", 10)
+        self.multi_cell(0, 5.5, safe(
             '"Crazy when you get a new streaming service and see all\n'
             'these shows and movies you forgot existed. Like oh that\'s\n'
             'where these were. They should make some kind of interface\n'
@@ -158,32 +167,37 @@ class ShowBook(FPDF):
             '\n'
             '\u2014 @deepfates'
         ), align="C")
-        self.ln(15)
-        self.set_font("Helvetica", "", 12)
-        self.cell(0, 8, safe("So here's your book."), ln=True, align="C")
-        self.cell(0, 8, safe("You're welcome."), ln=True, align="C")
-        self.ln(30)
+
+        self.ln(20)
         self.set_font("Helvetica", "", 10)
-        self.cell(0, 6, safe(f"Generated {date.today().strftime('%B %d, %Y')}"), ln=True, align="C")
         self.cell(0, 6, safe("(Already out of date.)"), ln=True, align="C")
 
-    def toc_page(self, catalog):
+    def index_page(self, catalog):
         self.add_page()
         self.set_font("Helvetica", "B", 28)
-        self.cell(0, 18, "Table of Contents", ln=True)
-        self.ln(8)
-        self.set_font("Helvetica", "", 13)
+        self.cell(0, 18, "Index", ln=True)
+        y = self.get_y()
+        self.line(10, y, 200, y)
+        self.ln(10)
+
+        self.set_font("Helvetica", "", 12)
         for provider_name, sections in catalog.items():
             n_movies = len(sections["Movies"])
             n_shows = len(sections["Shows"])
-            line = f"{provider_name}  \u2014  {n_movies} movies, {n_shows} shows"
-            self.cell(0, 9, safe(line), ln=True)
-        self.ln(15)
+            self.cell(0, 8, safe(f"{provider_name}"), ln=True)
+            self.set_font("Helvetica", "", 10)
+            self.cell(0, 7, safe(f"    {n_movies} movies, {n_shows} shows"), ln=True)
+            self.ln(2)
+            self.set_font("Helvetica", "", 12)
+
+        self.ln(10)
         total = sum(
             len(s["Movies"]) + len(s["Shows"]) for s in catalog.values()
         )
-        self.set_font("Helvetica", "B", 13)
-        self.cell(0, 9, safe(f"Total: {total} titles"), ln=True)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(5)
+        self.set_font("Helvetica", "B", 12)
+        self.cell(0, 8, safe(f"{total} titles across {len(catalog)} services"), ln=True)
 
     def provider_section(self, provider_name, movies, shows):
         self.add_page()
@@ -236,7 +250,7 @@ def generate_pdf(catalog, output_path):
     pdf.set_auto_page_break(auto=False)
 
     pdf.title_page()
-    pdf.toc_page(catalog)
+    pdf.index_page(catalog)
 
     for provider_name, sections in catalog.items():
         pdf.provider_section(provider_name, sections["Movies"], sections["Shows"])
